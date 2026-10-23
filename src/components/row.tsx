@@ -27,12 +27,6 @@ export const Row = memo(function Row({ onPress, accessibilityLabel, leading, tra
   );
 });
 
-/** A plain row with the same hairline, for rows that hold their own controls. */
-export function Divided({ children }: { children: ReactNode }) {
-  const { c } = useTheme();
-  return <View style={[styles.row, { borderColor: c.line }]}>{children}</View>;
-}
-
 const styles = StyleSheet.create({
   row: {
     minHeight: minTap + space.md,
