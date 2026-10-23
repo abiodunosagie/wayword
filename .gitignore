@@ -39,3 +39,11 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Session notes (local only)
+SESSION_GUIDE.md
+docs/task-tracker.tsv
+.envrc
+
+# Python
+__pycache__/
