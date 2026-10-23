@@ -25,6 +25,27 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      "expo-secure-store",
+      "expo-localization",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Wayword reads the photo you pick to find the words in it.",
+          "cameraPermission": "Wayword uses the camera to photograph signs, menus and letters so you can learn the words on them.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./assets/fonts/SchibstedGrotesk-ExtraBold.ttf",
+            "./assets/fonts/SchibstedGrotesk-SemiBold.ttf"
+          ]
+        }
+      ],
       [
         "expo-splash-screen",
         {
@@ -36,7 +57,12 @@
             "image": "./assets/splash-icon-dark.png"
           }
         }
-      ]
-    ]
+      ],
+      "expo-font",
+      "expo-image"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
   }
 }
