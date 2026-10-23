@@ -47,3 +47,4 @@ docs/task-tracker.tsv
 
 # Python
 __pycache__/
+docs/.task-tracker.tsv.lock
