@@ -38,6 +38,21 @@ const REFUSALS: Record<string, string> = {
 const MAX_SNAP_WORDS = 6;
 const MAX_TALK_WORDS = 3;
 
+// What reaches the function logs about a failure: its kind and status, never the request or its
+// text, which can hold what the learner photographed or wrote.
+export function describe(error: unknown): string {
+  if (!(error instanceof Error)) return "unknown error";
+  const status = (error as { status?: unknown }).status;
+  const id = (error as { request_id?: unknown }).request_id;
+  return [
+    error.name,
+    typeof status === "number" ? `status ${status}` : "",
+    typeof id === "string" ? `request ${id}` : "",
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
 class HttpError extends Error {
   constructor(readonly status: number, message: string) {
     super(message);
@@ -77,7 +92,7 @@ export async function handle(request: Request, deps: Deps): Promise<Response> {
     }
   } catch (error) {
     if (error instanceof HttpError) return json({ error: error.message }, error.status);
-    console.error("wayword request failed", error);
+    console.error("wayword request failed", describe(error));
     const { message, status } = publicError(error);
     return json({ error: message }, status);
   }
@@ -128,7 +143,7 @@ async function claimSlot(deps: Deps, userId: string, ip: string, req: WaywordReq
   try {
     row = await deps.claim(userId, ip, req.mode, MODEL);
   } catch (error) {
-    console.error("rate limit check failed", error);
+    console.error("rate limit check failed", describe(error));
     throw new HttpError(503, "Wayword is busy. Try again in a moment.");
   }
   if (!row.request_id) throw new HttpError(429, REFUSALS[row.refusal ?? ""] ?? REFUSALS.project_day);
@@ -154,7 +169,7 @@ function streamResponse(deps: Deps, req: WaywordRequest, abort: AbortController,
         for await (const event of deps.claude.stream(req, abort.signal, meter)) send(event);
       } catch (error) {
         if (abort.signal.aborted) return; // The app left; the stream is already closed.
-        console.error("wayword stream failed", error);
+        console.error("wayword stream failed", describe(error));
         send({ type: "error", message: publicError(error).message });
       } finally {
         await log(deps, requestId, meter, req);
@@ -180,7 +195,7 @@ async function log(deps: Deps, requestId: number, meter: Meter, req: WaywordRequ
       meter.input === null ? MAX_TOKENS[req.mode] : meter.output,
     );
   } catch (error) {
-    console.error("usage update failed", error);
+    console.error("usage update failed", describe(error));
   }
 }
 

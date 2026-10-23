@@ -16,20 +16,26 @@ export const MIN_STORY_WORDS = 3;
 export function useWeek(userId: string, prefs: Prefs) {
   const db = useSQLiteContext();
   const [words, setWords] = useState<{ word: string; meaning: string }[] | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [stories, setStories] = useState<Story[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abort = useRef<AbortController | null>(null);
 
   const load = useCallback(async () => {
-    const [w, s] = await Promise.all([wordsSince(db, userId, prefs.target, Date.now() - WEEK), listStories(db, userId, prefs.target)]);
-    setWords(w);
-    setStories(s);
+    setLoadFailed(false);
+    try {
+      const [w, s] = await Promise.all([wordsSince(db, userId, prefs.target, Date.now() - WEEK), listStories(db, userId, prefs.target)]);
+      setWords(w);
+      setStories(s);
+    } catch {
+      setLoadFailed(true);
+    }
   }, [db, userId, prefs.target]);
 
   useFocusEffect(
     useCallback(() => {
-      load().catch(() => setWords([]));
+      load();
     }, [load]),
   );
   useEffect(() => () => abort.current?.abort(), []);
@@ -53,5 +59,5 @@ export function useWeek(userId: string, prefs: Prefs) {
     }
   }, [busy, db, prefs, userId, words]);
 
-  return { words, stories, busy, error, write };
+  return { words, stories, busy, error, write, loadFailed, reload: load };
 }

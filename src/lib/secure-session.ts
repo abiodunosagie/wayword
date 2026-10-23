@@ -13,12 +13,21 @@ const keyName = (key: string) => `wayword.${key.replace(/[^A-Za-z0-9._-]/g, '_')
 
 export const secureSession = {
   async getItem(key: string): Promise<string | null> {
-    const encrypted = await Storage.getItem(key);
-    if (!encrypted) return null;
-    const hex = await SecureStore.getItemAsync(keyName(key));
-    if (!hex) return null;
-    const cipher = new aesjs.ModeOfOperation.ctr(aesjs.utils.hex.toBytes(hex), new aesjs.Counter(1));
-    return aesjs.utils.utf8.fromBytes(cipher.decrypt(aesjs.utils.hex.toBytes(encrypted)));
+    try {
+      const encrypted = await Storage.getItem(key);
+      if (!encrypted) return null;
+      const hex = await SecureStore.getItemAsync(keyName(key));
+      if (!hex) return null;
+      const cipher = new aesjs.ModeOfOperation.ctr(aesjs.utils.hex.toBytes(hex), new aesjs.Counter(1));
+      const value = aesjs.utils.utf8.fromBytes(cipher.decrypt(aesjs.utils.hex.toBytes(encrypted)));
+      // Supabase stores JSON. Anything else means the key and the data no longer match (the app
+      // was stopped between the two writes), so the session is dropped and you sign in again.
+      JSON.parse(value);
+      return value;
+    } catch {
+      await secureSession.removeItem(key).catch(() => {});
+      return null;
+    }
   },
 
   async setItem(key: string, value: string): Promise<void> {

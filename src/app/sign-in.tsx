@@ -3,6 +3,7 @@
 // up top; the form sits low, near your thumb. On success the root layout moves to the app by itself.
 import { type ComponentRef, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/button';
 import { Field } from '@/components/field';
@@ -10,7 +11,7 @@ import { Mark } from '@/components/mark';
 import { Notice } from '@/components/notice';
 import { AuthError, signIn, signUp } from '@/lib/auth';
 import { validateEmail, validateName, validateNewPassword, validatePassword } from '@/lib/validate';
-import { space, useTheme } from '@/theme/theme';
+import { minTap, space, useTheme } from '@/theme/theme';
 
 type Errors = Partial<Record<'first' | 'last' | 'email' | 'password', string | null>>;
 
@@ -24,6 +25,7 @@ export default function SignIn() {
   const [errors, setErrors] = useState<Errors>({});
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; tone: 'error' | 'info' } | null>(null);
+  const insets = useSafeAreaInsets();
   const passwordRef = useRef<ComponentRef<typeof TextInput>>(null);
 
   const submit = async () => {
@@ -58,12 +60,14 @@ export default function SignIn() {
   return (
     <KeyboardAvoidingView
       behavior={process.env.EXPO_OS === 'ios' ? 'padding' : undefined}
-      style={{ flex: 1, backgroundColor: c.background }}
+      style={[styles.flex, { backgroundColor: c.background }]}
     >
       <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
+        // The form sits at the bottom of a full-height page, so the safe areas are added here
+        // rather than by the scroll view, which would make the page taller than the screen.
+        contentInsetAdjustmentBehavior="never"
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + space.xxl, paddingBottom: insets.bottom + space.lg }]}
       >
         <View style={styles.top}>
           <Mark size={56} />
@@ -112,10 +116,15 @@ export default function SignIn() {
           />
           {message ? <Notice message={message.text} tone={message.tone} /> : null}
           <Button label={creating ? 'Create account' : 'Sign in'} onPress={submit} busy={busy} />
-          <Pressable accessibilityRole="button" onPress={busy ? undefined : switchMode} style={styles.switch} hitSlop={8}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={creating ? 'Have an account? Sign in' : 'New to Wayword? Create an account'}
+            onPress={busy ? undefined : switchMode}
+            style={({ pressed }) => [styles.switch, { opacity: pressed ? 0.6 : 1 }]}
+          >
             <Text style={t.muted}>
               {creating ? 'Have an account? ' : 'New to Wayword? '}
-              <Text style={{ color: c.accent, fontWeight: '600' }}>{creating ? 'Sign in' : 'Create an account'}</Text>
+              <Text style={t.link}>{creating ? 'Sign in' : 'Create an account'}</Text>
             </Text>
           </Pressable>
         </View>
@@ -125,10 +134,10 @@ export default function SignIn() {
 }
 
 const styles = StyleSheet.create({
-  content: { flexGrow: 1, justifyContent: 'space-between', padding: space.xl, paddingTop: space.xxl * 2, gap: space.xxl },
+  content: { flexGrow: 1, justifyContent: 'space-between', paddingHorizontal: space.xl, gap: space.xxl },
   top: { gap: space.md },
   form: { gap: space.lg },
   names: { flexDirection: 'row', gap: space.md },
   flex: { flex: 1 },
-  switch: { alignItems: 'center', paddingVertical: space.sm },
+  switch: { alignItems: 'center', justifyContent: 'center', minHeight: minTap },
 });

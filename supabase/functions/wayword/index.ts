@@ -13,16 +13,24 @@ const admin = createClient(
 );
 const apiKey = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
 
-// The network a request came from, hashed so no raw IP address is ever stored. Supabase's edge
-// sits behind Cloudflare, which sets CF-Connecting-IP itself and rejects requests that send their
-// own, so it cannot be faked the way X-Forwarded-For can. Without it the request shares one
-// "unknown" bucket, so a missing header limits harder instead of not at all.
+// The network a request came from, as a keyed hash (HMAC-SHA-256 with the IP_HASH_KEY secret), so
+// no raw IP address is stored and the stored value cannot be reversed by trying every address.
+// Supabase's edge sits behind Cloudflare, which sets CF-Connecting-IP itself and rejects requests
+// that send their own, so it cannot be faked the way X-Forwarded-For can. Without it the request
+// shares one "unknown" bucket, so a missing header limits harder instead of not at all.
+const ipKey = crypto.subtle.importKey(
+  "raw",
+  new TextEncoder().encode(Deno.env.get("IP_HASH_KEY") || Deno.env.get("SUPABASE_URL") || ""),
+  { name: "HMAC", hash: "SHA-256" },
+  false,
+  ["sign"],
+);
+
 async function hashIp(request: Request): Promise<string> {
   const ip = request.headers.get("cf-connecting-ip")?.trim();
   if (!ip) console.warn("request without CF-Connecting-IP; using the shared unknown bucket");
-  const salted = new TextEncoder().encode(`${Deno.env.get("SUPABASE_URL")}|${ip || "unknown"}`);
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", salted));
-  return Array.from(digest.slice(0, 16), (b) => b.toString(16).padStart(2, "0")).join("");
+  const mac = await crypto.subtle.sign("HMAC", await ipKey, new TextEncoder().encode(ip || "unknown"));
+  return Array.from(new Uint8Array(mac).slice(0, 16), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 Deno.serve((request) =>

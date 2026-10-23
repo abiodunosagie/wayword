@@ -1,12 +1,15 @@
 // FILE: hooks/use-talk.ts
 // One role-play conversation: loads it, asks Claude for the opening line when it is new, sends
-// your lines, and saves every turn on the phone. A conversation you open and leave without a
-// single line is removed, so the list only shows real ones.
+// your lines, and saves every turn on the phone. Turns always alternate, as the server requires:
+// you can only speak after the other person has, and a reply that failed is asked for again
+// instead of stacking a second line of yours. A conversation you open and leave without a single
+// line is removed, so the list only shows real ones.
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { deleteTalk, getTalk, saveTalk } from '@/db/talks';
 import { ApiError, talkTurn } from '@/lib/api';
+import { needsReply, yourTurn } from '@/lib/talk-rules';
 import type { Prefs, Talk, TalkTurn } from '@/lib/types';
 
 export function useTalk(userId: string, prefs: Prefs, id: string) {
@@ -16,9 +19,13 @@ export function useTalk(userId: string, prefs: Prefs, id: string) {
   const [error, setError] = useState<string | null>(null);
   const abort = useRef<AbortController | null>(null);
   const latest = useRef<Talk | null>(null);
+  // Set synchronously, so two taps in the same frame cannot both send.
+  const sending = useRef(false);
 
   const step = useCallback(
     async (current: Talk) => {
+      if (sending.current) return;
+      sending.current = true;
       abort.current?.abort();
       const controller = new AbortController();
       abort.current = controller;
@@ -41,6 +48,7 @@ export function useTalk(userId: string, prefs: Prefs, id: string) {
         if (controller.signal.aborted) return;
         setError(e instanceof ApiError ? e.message : 'Could not get a reply. Try again.');
       } finally {
+        sending.current = false;
         if (!controller.signal.aborted) setBusy(false);
       }
     },
@@ -70,7 +78,7 @@ export function useTalk(userId: string, prefs: Prefs, id: string) {
     async (text: string) => {
       const current = latest.current;
       const line = text.trim();
-      if (!current || !line || busy || current.finished) return;
+      if (!current || !line || sending.current || !yourTurn(current)) return;
       const turn: TalkTurn = { role: 'user', text: line };
       const next = { ...current, turns: [...current.turns, turn], updated_at: Date.now() };
       latest.current = next;
@@ -78,13 +86,14 @@ export function useTalk(userId: string, prefs: Prefs, id: string) {
       await saveTalk(db, userId, next);
       await step(next);
     },
-    [busy, db, step, userId],
+    [db, step, userId],
   );
 
   // After a failed reply, ask again for the same turn without resending anything.
   const retry = useCallback(() => {
-    if (latest.current && !busy) step(latest.current);
-  }, [busy, step]);
+    const current = latest.current;
+    if (current && needsReply(current)) step(current);
+  }, [step]);
 
   return { talk, busy, error, send, retry };
 }

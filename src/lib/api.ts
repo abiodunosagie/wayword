@@ -5,6 +5,7 @@
 import { fetch } from 'expo/fetch';
 
 import { SUPABASE_KEY, SUPABASE_URL, configured } from './config';
+import { OFFLINE, TRY_AGAIN } from './messages';
 import { SseParser } from './sse';
 import { supabase } from './supabase';
 import type { Prefs, SnapReading, StoryReply, TalkReply, TalkTurn } from './types';
@@ -17,8 +18,6 @@ export class ApiError extends Error {
     super(message);
   }
 }
-
-const OFFLINE = 'You seem to be offline. Check your connection and try again.';
 
 async function token(fresh: boolean): Promise<string> {
   const { data } = fresh ? await supabase.auth.refreshSession() : await supabase.auth.getSession();
@@ -49,7 +48,7 @@ async function send(body: object, signal?: AbortSignal, fresh = false): Promise<
   // An expired session gets one refresh and one retry before the person is asked to sign in.
   if (response.status === 401 && !fresh) return send(body, signal, true);
   if (!response.ok) {
-    let message = 'Something went wrong. Try again.';
+    let message = TRY_AGAIN;
     try {
       const data = await response.json();
       if (typeof data?.error === 'string') message = data.error;
@@ -97,7 +96,9 @@ export function writeStory(prefs: Prefs, words: { word: string; meaning: string 
   return structured<StoryReply>({ mode: 'story', ...pair(prefs), words }, signal);
 }
 
-/** Streams Claude's answer to "why?" about a word; [onText] gets each piece as it is written. */
+/** Streams Claude's answer to "why?" about a word; [onText] gets each piece as it is written.
+ * Resolves only when the server says the answer is finished, so a dropped connection never
+ * passes for a complete answer. */
 export async function explain(
   prefs: Prefs,
   ask: { phrase: string; context: string; question: string },
@@ -116,11 +117,14 @@ export async function explain(
       if (signal?.aborted) throw error;
       throw new ApiError('The connection dropped. Try again.');
     }
-    if (chunk.done) return;
+    if (chunk.done) throw new ApiError('The connection dropped. Try again.');
     for (const event of parser.push(chunk.value)) {
       if (event.type === 'text') onText(event.text);
       else if (event.type === 'error') throw new ApiError(event.message);
-      else if (event.type === 'done') return;
+      else if (event.type === 'done') {
+        if (event.stop_reason === 'refusal') throw new ApiError('Claude would not answer that one.');
+        return;
+      }
     }
   }
 }

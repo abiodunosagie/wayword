@@ -9,17 +9,17 @@ import { Button } from '@/components/button';
 import { LanguagePicker } from '@/components/language-picker';
 import { LevelChoice } from '@/components/level-choice';
 import { Mark } from '@/components/mark';
+import { SectionLabel } from '@/components/section-label';
 import { type Level, languageForLocale } from '@/lib/languages';
 import { usePrefs } from '@/state/prefs';
 import { space, useTheme } from '@/theme/theme';
 
-const device = languageForLocale(getLocales()[0]?.languageTag) ?? 'en';
-
 export default function Welcome() {
   const { c, t } = useTheme();
   const { save } = usePrefs();
-  const [native, setNative] = useState(device);
-  const [target, setTarget] = useState(device === 'pt-PT' ? 'en' : 'pt-PT');
+  // Starts from the phone's own language, read when the screen opens.
+  const [native, setNative] = useState(() => languageForLocale(getLocales()[0]?.languageTag) ?? 'en');
+  const [target, setTarget] = useState(() => (native === 'pt-PT' ? 'en' : 'pt-PT'));
   const [level, setLevel] = useState<Level>('beginner');
 
   const pickNative = (code: string) => {
@@ -45,7 +45,7 @@ export default function Welcome() {
         <LanguagePicker label="I'm learning" value={target} onChange={setTarget} exclude={native} />
       </View>
       <View style={styles.section}>
-        <Text style={t.label}>HOW MUCH YOU KNOW</Text>
+        <SectionLabel>How much you know</SectionLabel>
         <LevelChoice value={level} onChange={setLevel} />
       </View>
       <Button label="Continue" onPress={() => save({ native, target, level })} />

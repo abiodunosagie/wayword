@@ -4,7 +4,7 @@ import { memo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { SnapWord } from '@/lib/types';
-import { useTheme } from '@/theme/theme';
+import { minTap, space, useTheme } from '@/theme/theme';
 
 import { Icon } from './icon';
 
@@ -17,7 +17,7 @@ export const WordPick = memo(function WordPick({ word, picked, kept, onToggle, o
       <Pressable
         accessibilityRole="checkbox"
         accessibilityState={{ checked: kept || picked, disabled: kept }}
-        accessibilityLabel={`Keep ${word.word}`}
+        accessibilityLabel={`${word.word}, ${word.meaning}${kept ? ', already kept' : ''}`}
         onPress={kept ? undefined : () => onToggle(word.word)}
         style={styles.main}
       >
@@ -31,7 +31,7 @@ export const WordPick = memo(function WordPick({ word, picked, kept, onToggle, o
           {kept ? <Text style={[t.small, { color: c.success }]}>Already in your words</Text> : null}
         </View>
       </Pressable>
-      <Pressable accessibilityRole="button" accessibilityLabel={`Hear ${word.word}`} hitSlop={10} onPress={() => onHear(word.word)}>
+      <Pressable accessibilityRole="button" accessibilityLabel={`Hear ${word.word}`} style={styles.tap} onPress={() => onHear(word.word)}>
         <Icon name="speak" color={c.accent} />
       </Pressable>
     </View>
@@ -39,7 +39,8 @@ export const WordPick = memo(function WordPick({ word, picked, kept, onToggle, o
 });
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth },
-  main: { flex: 1, flexDirection: 'row', gap: 12 },
+  row: { flexDirection: 'row', alignItems: 'flex-start', gap: space.md, paddingVertical: space.md, borderBottomWidth: StyleSheet.hairlineWidth },
+  main: { flex: 1, flexDirection: 'row', gap: space.md },
+  tap: { minWidth: minTap, minHeight: minTap, alignItems: 'center' },
   text: { flex: 1, gap: 2 },
 });

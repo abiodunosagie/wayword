@@ -41,6 +41,7 @@ export function useExplain(userId: string, prefs: Prefs, card: Card | null, cont
           controller.signal,
         );
         if (text.trim()) await saveWhy(db, userId, card.id, text);
+        else setError('Claude did not answer that. Try asking another way.');
       } catch (e) {
         if (controller.signal.aborted) return;
         setError(e instanceof ApiError ? e.message : 'Could not get an answer. Try again.');

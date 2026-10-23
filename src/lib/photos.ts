@@ -1,6 +1,8 @@
 // FILE: lib/photos.ts
 // Photos for Snap: taken or picked, shrunk to what Claude reads best (1568 px on the long side),
-// then kept in the app's own folder so each card can show where its word came from.
+// then kept in the app's own folder so each card can show where its word came from. Each account
+// has its own folder, and re-encoding the photo drops its EXIF data (location included) before it
+// is sent anywhere.
 import { Directory, File, Paths } from 'expo-file-system';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
@@ -11,11 +13,14 @@ export type Prepared = { uri: string; base64: string };
 
 export class PhotoError extends Error {}
 
-function folder(): Directory {
+function root(): Directory {
   const dir = new Directory(Paths.document, 'photos');
   dir.create({ idempotent: true, intermediates: true });
   return dir;
 }
+
+/** Stored names are "<account>/<photo>.jpg", so one account's photos never sit beside another's. */
+const fileFor = (name: string) => new File(root(), ...name.split('/'));
 
 /** Opens the camera or the photo library. Null when the person cancels. */
 export async function pickPhoto(source: 'camera' | 'library'): Promise<ImagePicker.ImagePickerAsset | null> {
@@ -41,25 +46,38 @@ export async function preparePhoto(asset: { uri: string; width: number; height: 
     context.resize(asset.width >= asset.height ? { width: LONG_SIDE, height: null } : { width: null, height: LONG_SIDE });
   }
   const image = await context.renderAsync();
-  const saved = await image.saveAsync({ format: SaveFormat.JPEG, compress: 0.75, base64: true });
-  if (!saved.base64) throw new PhotoError('Could not read that photo. Try another one.');
-  return { uri: saved.uri, base64: saved.base64 };
+  try {
+    const saved = await image.saveAsync({ format: SaveFormat.JPEG, compress: 0.75, base64: true });
+    if (!saved.base64) throw new PhotoError('Could not read that photo. Try another one.');
+    return { uri: saved.uri, base64: saved.base64 };
+  } finally {
+    // Native image memory is not garbage collected with the JavaScript objects.
+    image.release();
+    context.release();
+  }
 }
 
-/** Moves a prepared photo into the app's folder; returns the file name to store. */
-export function keepPhoto(uri: string, id: string): string {
-  const name = `${id}.jpg`;
-  const target = new File(folder(), name);
+/** Copies a prepared photo into the account's folder; returns the name to store. */
+export function keepPhoto(uri: string, id: string, userId: string): string {
+  const dir = new Directory(root(), userId);
+  dir.create({ idempotent: true });
+  const name = `${userId}/${id}.jpg`;
+  const target = fileFor(name);
   if (target.exists) target.delete();
   new File(uri).copy(target);
   return name;
 }
 
 export function photoUri(name: string): string {
-  return new File(folder(), name).uri;
+  return fileFor(name).uri;
 }
 
+/** Never throws: a photo that cannot be removed must not block deleting what it belongs to. */
 export function deletePhoto(name: string): void {
-  const file = new File(folder(), name);
-  if (file.exists) file.delete();
+  try {
+    const file = fileFor(name);
+    if (file.exists) file.delete();
+  } catch {
+    // Left on disk; it is inside the app's own sandbox and no row points at it any more.
+  }
 }

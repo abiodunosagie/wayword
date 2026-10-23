@@ -2,6 +2,7 @@
 // Signing in, creating an account, the name, and deleting the account, with Supabase errors turned
 // into words a person can act on. Passwords go straight to Supabase over HTTPS and are never kept.
 import { SUPABASE_KEY, SUPABASE_URL } from './config';
+import { OFFLINE, TRY_AGAIN } from './messages';
 import { supabase } from './supabase';
 import { cleanName } from './validate';
 
@@ -14,8 +15,8 @@ function friendly(error: { message?: string; status?: number; code?: string } | 
   if (code === 'weak_password') return 'Choose a longer password, at least 8 characters.';
   if (code === 'over_request_rate_limit' || error?.status === 429) return 'Too many tries. Wait a minute and try again.';
   if (code === 'email_not_confirmed') return 'Confirm your email first, then sign in.';
-  if (!error?.status) return 'You seem to be offline. Check your connection and try again.';
-  return 'Something went wrong. Try again.';
+  if (!error?.status) return OFFLINE;
+  return TRY_AGAIN;
 }
 
 export async function signIn(email: string, password: string): Promise<void> {
@@ -56,7 +57,7 @@ export async function deleteAccount(): Promise<void> {
       headers: { Authorization: `Bearer ${token}`, apikey: SUPABASE_KEY },
     });
   } catch {
-    throw new AuthError('You seem to be offline. Check your connection and try again.');
+    throw new AuthError(OFFLINE);
   }
   if (!response.ok) throw new AuthError('Could not delete the account. Try again.');
 }

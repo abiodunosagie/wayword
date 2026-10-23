@@ -1,3 +1,4 @@
+// FILE: lib/validate.test.ts
 import { describe, expect, it } from '@jest/globals';
 import { cleanName, validateEmail, validateName, validateNewPassword } from './validate';
 

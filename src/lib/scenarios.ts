@@ -5,13 +5,17 @@ import type { Snap, SnapKind } from './types';
 
 export type Scenario = { key: string; title: string; setting: string; from?: string };
 
-const FROM_PHOTO: Partial<Record<SnapKind, (s: Snap) => string>> = {
-  menu: (s) => `Ordering from this menu (${s.title})`,
-  sign: (s) => `Asking someone about this sign (${s.title})`,
-  letter: (s) => `Phoning about this letter (${s.title})`,
-  label: (s) => `Asking a shop assistant about this (${s.title})`,
-  screen: (s) => `Asking for help with this screen (${s.title})`,
-  note: (s) => `Talking about this note (${s.title})`,
+// The server caps a situation's title at 120 characters, so the photo's title is shortened first.
+const MAX_PHOTO_TITLE = 60;
+const short = (title: string) => (title.length > MAX_PHOTO_TITLE ? `${title.slice(0, MAX_PHOTO_TITLE - 1).trim()}…` : title);
+
+const FROM_PHOTO: Partial<Record<SnapKind, (title: string) => string>> = {
+  menu: (t) => `Ordering from this menu (${t})`,
+  sign: (t) => `Asking someone about this sign (${t})`,
+  letter: (t) => `Phoning about this letter (${t})`,
+  label: (t) => `Asking a shop assistant about this (${t})`,
+  screen: (t) => `Asking for help with this screen (${t})`,
+  note: (t) => `Talking about this note (${t})`,
 };
 
 export const EVERYDAY: Scenario[] = [
@@ -31,7 +35,7 @@ export function fromSnaps(snaps: Snap[], max = 4): Scenario[] {
   for (const snap of snaps) {
     const make = FROM_PHOTO[snap.kind];
     if (!make || !snap.source_text.trim()) continue;
-    out.push({ key: `snap:${snap.id}`, title: make(snap), setting: snap.source_text.slice(0, 2500), from: snap.id });
+    out.push({ key: `snap:${snap.id}`, title: make(short(snap.title)), setting: snap.source_text.slice(0, 2500), from: snap.id });
     if (out.length >= max) break;
   }
   return out;

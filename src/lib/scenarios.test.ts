@@ -1,3 +1,4 @@
+// FILE: lib/scenarios.test.ts
 import { describe, expect, it } from '@jest/globals';
 import { fromSnaps } from './scenarios';
 import type { Snap } from './types';
@@ -31,6 +32,11 @@ describe('situations from photos', () => {
       ...['3', '4', '5'].map((id) => snap({ id, kind: 'sign' })),
     ];
     expect(fromSnaps(snaps, 2).map((s) => s.key)).toEqual(['snap:3', 'snap:4']);
+  });
+
+  it('keeps the title within the server limit however long the photo title is', () => {
+    const title = fromSnaps([snap({ kind: 'letter', title: 'x'.repeat(300) })])[0].title;
+    expect(title.length).toBeLessThanOrEqual(120);
   });
 
   it('caps a long text so the request stays small', () => {

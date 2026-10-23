@@ -6,9 +6,10 @@ import { memo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { TalkTurn } from '@/lib/types';
-import { radius, useTheme } from '@/theme/theme';
+import { minTap, rounded, roundedSmall, space, useTheme } from '@/theme/theme';
 
 import { Icon } from './icon';
+import { TextLink } from './text-link';
 
 type Props = {
   turn: TalkTurn;
@@ -50,14 +51,10 @@ export const TalkBubble = memo(function TalkBubble({ turn, kept, onHear, onKeep 
         </Text>
         {showMeaning && turn.meaning ? <Text style={t.muted}>{turn.meaning}</Text> : null}
         <View style={styles.tools}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Hear it" hitSlop={10} onPress={() => onHear(turn.text)}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Hear this line" style={styles.tap} onPress={() => onHear(turn.text)}>
             <Icon name="speak" size={20} color={c.accent} />
           </Pressable>
-          {turn.meaning ? (
-            <Pressable accessibilityRole="button" hitSlop={10} onPress={() => setShowMeaning((v) => !v)}>
-              <Text style={{ color: c.accent, fontWeight: '600' }}>{showMeaning ? 'Hide meaning' : 'Meaning'}</Text>
-            </Pressable>
-          ) : null}
+          {turn.meaning ? <TextLink label={showMeaning ? 'Hide meaning' : 'Meaning'} onPress={() => setShowMeaning((v) => !v)} /> : null}
         </View>
       </View>
       {turn.words?.map((w) => {
@@ -67,8 +64,9 @@ export const TalkBubble = memo(function TalkBubble({ turn, kept, onHear, onKeep 
             key={w.word}
             accessibilityRole="button"
             accessibilityState={{ disabled: done }}
+            accessibilityLabel={done ? `${w.word} kept` : `Keep ${w.word}, ${w.meaning}`}
             onPress={done ? undefined : () => onKeep(w)}
-            style={[styles.word, { borderColor: c.line }]}
+            style={({ pressed }) => [styles.word, { borderColor: c.line, opacity: pressed ? 0.7 : 1 }]}
           >
             <Icon name={done ? 'checked' : 'unchecked'} size={18} color={done ? c.success : c.accent} />
             <Text style={[t.small, styles.flex]}>
@@ -83,11 +81,12 @@ export const TalkBubble = memo(function TalkBubble({ turn, kept, onHear, onKeep 
 });
 
 const styles = StyleSheet.create({
-  left: { alignSelf: 'flex-start', maxWidth: '88%', gap: 6 },
-  right: { alignSelf: 'flex-end', maxWidth: '88%', gap: 6, alignItems: 'flex-end' },
-  bubble: { borderRadius: radius, borderCurve: 'continuous', paddingHorizontal: 14, paddingVertical: 10, gap: 6 },
-  fix: { borderLeftWidth: 3, paddingLeft: 10, gap: 2, alignSelf: 'stretch' },
-  tools: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  word: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: StyleSheet.hairlineWidth, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 },
+  left: { alignSelf: 'flex-start', maxWidth: '88%', gap: space.sm },
+  right: { alignSelf: 'flex-end', maxWidth: '88%', gap: space.sm, alignItems: 'flex-end' },
+  bubble: { ...rounded, paddingHorizontal: space.md + 2, paddingVertical: space.md - 2, gap: space.xs },
+  fix: { borderLeftWidth: 3, paddingLeft: space.md - 2, gap: 2, alignSelf: 'stretch' },
+  tools: { flexDirection: 'row', alignItems: 'center', gap: space.lg },
+  tap: { minWidth: minTap, minHeight: minTap, justifyContent: 'center' },
+  word: { minHeight: minTap, flexDirection: 'row', alignItems: 'center', gap: space.sm, borderWidth: StyleSheet.hairlineWidth, ...roundedSmall, paddingHorizontal: space.md - 2 },
   flex: { flex: 1 },
 });

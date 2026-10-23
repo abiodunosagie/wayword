@@ -1,3 +1,4 @@
+// FILE: lib/sse.test.ts
 import { describe, expect, it } from '@jest/globals';
 import { SseParser } from './sse';
 

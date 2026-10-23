@@ -1,3 +1,4 @@
+// FILE: lib/languages.test.ts
 /// <reference types="node" />
 import { describe, expect, it } from '@jest/globals';
 import { readFileSync } from 'node:fs';

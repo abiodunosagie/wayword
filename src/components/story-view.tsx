@@ -6,9 +6,10 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { say } from '@/lib/speech';
 import type { Story } from '@/lib/types';
-import { space, useTheme } from '@/theme/theme';
+import { minTap, space, useTheme } from '@/theme/theme';
 
 import { Icon } from './icon';
+import { TextLink } from './text-link';
 
 export function StoryView({ story }: { story: Story }) {
   const { c, t } = useTheme();
@@ -35,12 +36,10 @@ export function StoryView({ story }: { story: Story }) {
           </Text>
           {open.has(i) ? <Text style={t.muted}>{p.meaning}</Text> : null}
           <View style={styles.tools}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Hear this paragraph" hitSlop={10} onPress={() => say(p.text, story.target)}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Hear this paragraph" style={styles.tap} onPress={() => say(p.text, story.target)}>
               <Icon name="speak" size={20} color={c.accent} />
             </Pressable>
-            <Pressable accessibilityRole="button" hitSlop={10} onPress={() => toggle(i)}>
-              <Text style={{ color: c.accent, fontWeight: '600' }}>{open.has(i) ? 'Hide meaning' : 'Meaning'}</Text>
-            </Pressable>
+            <TextLink label={open.has(i) ? 'Hide meaning' : 'Meaning'} onPress={() => toggle(i)} />
           </View>
         </View>
       ))}
@@ -57,4 +56,5 @@ const styles = StyleSheet.create({
   wrap: { gap: space.lg },
   paragraph: { gap: space.sm },
   tools: { flexDirection: 'row', alignItems: 'center', gap: space.lg },
+  tap: { minWidth: minTap, minHeight: minTap, justifyContent: 'center' },
 });

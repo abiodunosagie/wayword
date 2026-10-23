@@ -84,7 +84,7 @@ supabase db push --linked --include-all     # the request log and the limits fun
 supabase config push                        # auth settings (8 character passwords)
 supabase secrets set ANTHROPIC_API_KEY=...  # never in the app
 supabase functions deploy wayword && supabase functions deploy delete-account
-cd supabase/functions/wayword && deno test  # 15 tests: validation and the handler
+cd supabase/functions/wayword && deno test  # 17 tests: validation, prompts and the handler
 ```
 
 ## Brand

@@ -2,36 +2,28 @@
 // One photo Claude has read, in a list: the photo, its title and when.
 import { Image } from 'expo-image';
 import { memo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 
-import { useTheme } from '@/theme/theme';
+import { roundedSmall, thumb, useTheme } from '@/theme/theme';
 
-import { Icon } from './icon';
+import { Row } from './row';
 
 type Props = { uri: string; title: string; detail: string; onPress: () => void };
 
 export const PhotoRow = memo(function PhotoRow({ uri, title, detail, onPress }: Props) {
   const { c, t } = useTheme();
   return (
-    <Pressable
-      accessibilityRole="button"
+    <Row
       onPress={onPress}
-      style={({ pressed }) => [styles.row, { borderColor: c.line, opacity: pressed ? 0.7 : 1 }]}
+      accessibilityLabel={`${title}, ${detail}`}
+      leading={<Image source={{ uri }} style={[styles.thumb, { backgroundColor: c.surface }]} contentFit="cover" />}
     >
-      <Image source={{ uri }} style={[styles.thumb, { backgroundColor: c.surface }]} contentFit="cover" />
-      <View style={styles.text}>
-        <Text style={t.heading} numberOfLines={2}>
-          {title}
-        </Text>
-        <Text style={t.small}>{detail}</Text>
-      </View>
-      <Icon name="chevron" size={14} color={c.muted} />
-    </Pressable>
+      <Text style={t.heading} numberOfLines={2}>
+        {title}
+      </Text>
+      <Text style={t.small}>{detail}</Text>
+    </Row>
   );
 });
 
-const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
-  thumb: { width: 64, height: 64, borderRadius: 10, borderCurve: 'continuous' },
-  text: { flex: 1, gap: 2 },
-});
+const styles = StyleSheet.create({ thumb: { width: thumb.medium, height: thumb.medium, ...roundedSmall } });

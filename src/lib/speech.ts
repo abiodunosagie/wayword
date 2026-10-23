@@ -9,7 +9,3 @@ export function say(text: string, language: string): void {
   Speech.stop();
   Speech.speak(text, { language: speechCode(language), rate: 0.9 });
 }
-
-export function stopSpeaking(): void {
-  Speech.stop();
-}

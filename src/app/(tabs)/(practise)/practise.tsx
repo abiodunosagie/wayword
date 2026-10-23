@@ -1,16 +1,17 @@
 // FILE: app/(tabs)/(practise)/practise.tsx
 // Practise the words that are due, one card at a time, fully offline. See the word, try to recall
-// it, show the answer, then say how well you knew it; each button shows when the card comes back.
+// it, show the answer, then say how well you knew it; each button says when the card comes back.
 // A card you missed comes round again before the session ends.
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/button';
 import { Icon } from '@/components/icon';
+import { LoadFailed, Loading, Page } from '@/components/screen';
 import { dueCards, gradeCard } from '@/db/cards';
 import { getSnap } from '@/db/snaps';
 import { plural } from '@/lib/format';
@@ -20,7 +21,7 @@ import { type Grade, whenNext } from '@/lib/srs';
 import type { Card } from '@/lib/types';
 import { useLanguagePair } from '@/state/prefs';
 import { useAccount } from '@/state/session';
-import { radius, space, useTheme } from '@/theme/theme';
+import { minTap, rounded, space, useTheme } from '@/theme/theme';
 
 const GRADES: { grade: Grade; label: string }[] = [
   { grade: 'again', label: 'Again' },
@@ -29,8 +30,9 @@ const GRADES: { grade: Grade; label: string }[] = [
   { grade: 'easy', label: 'Easy' },
 ];
 
-// [at] is when the current card came up, for the "comes back in" labels.
-type Session = { queue: Card[]; done: number; photo: string | null; at: number };
+// [target] is the language the cards are in, so switching language starts a fresh session.
+// [at] is when the current card came up, for the "comes back" labels.
+type Session = { target: string; queue: Card[]; done: number; photo: string | null; at: number };
 
 export default function PractiseScreen() {
   const { c, t } = useTheme();
@@ -38,8 +40,14 @@ export default function PractiseScreen() {
   const account = useAccount();
   const prefs = useLanguagePair();
   const [session, setSession] = useState<Session | null>(null);
+  const [failed, setFailed] = useState(false);
   const [revealed, setRevealed] = useState(false);
   const [grading, setGrading] = useState(false);
+  // Read by the focus effect without making it re-run every time the session changes.
+  const latest = useRef<Session | null>(null);
+  useEffect(() => {
+    latest.current = session;
+  }, [session]);
 
   const photoFor = useCallback(
     async (card: Card | undefined) => {
@@ -50,21 +58,32 @@ export default function PractiseScreen() {
     [db, account.id],
   );
 
+  /** Fills the queue with what is due; the count of cards done carries on within one language. */
   const load = useCallback(async () => {
-    const now = Date.now();
-    const queue = await dueCards(db, account.id, prefs.target, now);
-    setRevealed(false);
-    setSession({ queue, done: 0, photo: await photoFor(queue[0]), at: now });
+    setFailed(false);
+    try {
+      const now = Date.now();
+      const queue = await dueCards(db, account.id, prefs.target, now);
+      const prev = latest.current;
+      const done = prev && prev.target === prefs.target ? prev.done : 0;
+      setRevealed(false);
+      setSession({ target: prefs.target, queue, done, photo: await photoFor(queue[0]), at: now });
+    } catch {
+      setFailed(true);
+    }
   }, [db, account.id, prefs.target, photoFor]);
 
-  // A session in progress stays as it is when you switch tabs and come back.
+  // On every visit: keep a session in progress, refill an empty one, start over after a language
+  // change. It runs once per focus, because nothing it depends on changes while you practise.
   useFocusEffect(
     useCallback(() => {
-      if (!session || session.queue.length === 0) load().catch(() => setSession({ queue: [], done: 0, photo: null, at: 0 }));
-    }, [session, load]),
+      const prev = latest.current;
+      if (!prev || prev.queue.length === 0 || prev.target !== prefs.target) load();
+    }, [load, prefs.target]),
   );
 
-  if (!session) return <ActivityIndicator style={styles.center} color={c.muted} />;
+  if (failed) return <LoadFailed onRetry={load} />;
+  if (!session) return <Loading />;
   const card = session.queue[0];
 
   const grade = async (g: Grade) => {
@@ -76,7 +95,13 @@ export default function PractiseScreen() {
       const rest = session.queue.slice(1);
       const queue = g === 'again' ? [...rest, next] : rest;
       setRevealed(false);
-      setSession({ queue, done: session.done + (g === 'again' ? 0 : 1), photo: await photoFor(queue[0]), at: Date.now() });
+      setSession({
+        ...session,
+        queue,
+        done: session.done + (g === 'again' ? 0 : 1),
+        photo: await photoFor(queue[0]),
+        at: Date.now(),
+      });
     } finally {
       setGrading(false);
     }
@@ -84,22 +109,20 @@ export default function PractiseScreen() {
 
   if (!card) {
     return (
-      <ScrollView contentInsetAdjustmentBehavior="automatic" style={{ backgroundColor: c.background }} contentContainerStyle={styles.pad}>
-        <View style={styles.gap}>
-          <Text style={t.title}>{session.done > 0 ? 'Done for now.' : 'Nothing to practise yet.'}</Text>
-          <Text style={t.muted}>
-            {session.done > 0
-              ? `You practised ${plural(session.done, 'word')}. Each one comes back when you are about to forget it.`
-              : 'Keep words from a photo and they show up here when they are due.'}
-          </Text>
-          {session.done > 0 ? <Button label="Check for more" kind="secondary" onPress={() => load()} /> : null}
-        </View>
-      </ScrollView>
+      <Page gap={space.lg}>
+        <Text style={t.title}>{session.done > 0 ? 'Done for now.' : 'Nothing to practise yet.'}</Text>
+        <Text style={t.muted}>
+          {session.done > 0
+            ? `You practised ${plural(session.done, 'word')}. Each one comes back just before you would forget it.`
+            : 'Keep words from a photo and they show up here when they are due.'}
+        </Text>
+        {session.done > 0 ? <Button label="Check for more" kind="secondary" onPress={load} /> : null}
+      </Page>
     );
   }
 
   return (
-    <ScrollView contentInsetAdjustmentBehavior="automatic" style={{ backgroundColor: c.background }} contentContainerStyle={[styles.pad, styles.gap]}>
+    <Page gap={space.lg}>
       <Text style={[t.small, styles.count]}>
         {session.done} done · {session.queue.length} left
       </Text>
@@ -108,12 +131,17 @@ export default function PractiseScreen() {
         <View style={styles.cardBody}>
           <View style={styles.wordRow}>
             <Text style={[t.display, styles.flex]}>{card.word}</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel="Hear it" hitSlop={12} onPress={() => say(card.word, card.target)}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Hear ${card.word}`}
+              style={styles.tap}
+              onPress={() => say(card.word, card.target)}
+            >
               <Icon name="speak" size={28} color={c.accent} />
             </Pressable>
           </View>
           {revealed ? (
-            <View style={styles.gap}>
+            <View style={styles.answer}>
               {card.pronunciation ? <Text style={t.muted}>{card.pronunciation}</Text> : null}
               <Text style={t.title}>{card.meaning}</Text>
               {card.example ? (
@@ -129,33 +157,30 @@ export default function PractiseScreen() {
         </View>
       </View>
       {revealed ? (
-        <View style={styles.grid}>
-          {GRADES.map(({ grade: g, label }) => (
-            <View key={g} style={styles.cell}>
-              <Button label={label} kind={g === 'good' ? 'primary' : 'secondary'} onPress={() => grade(g)} disabled={grading} />
-              <Text style={[t.small, styles.when]}>{whenNext(card, g, session.at)}</Text>
-            </View>
-          ))}
-        </View>
+        GRADES.map(({ grade: g, label }) => (
+          <Button
+            key={g}
+            label={`${label}, back ${whenNext(card, g, session.at)}`}
+            kind={g === 'good' ? 'primary' : 'secondary'}
+            onPress={() => grade(g)}
+            disabled={grading}
+          />
+        ))
       ) : (
         <Button label="Show the answer" onPress={() => setRevealed(true)} />
       )}
-    </ScrollView>
+    </Page>
   );
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  pad: { padding: space.xl, paddingBottom: space.xxl * 2 },
-  gap: { gap: space.lg },
   flex: { flex: 1 },
   count: { fontVariant: ['tabular-nums'] },
-  card: { borderRadius: radius, borderCurve: 'continuous', overflow: 'hidden' },
+  card: { ...rounded, overflow: 'hidden' },
   photo: { width: '100%', aspectRatio: 16 / 9 },
   cardBody: { padding: space.xl, gap: space.lg },
   wordRow: { flexDirection: 'row', alignItems: 'flex-start', gap: space.md },
+  tap: { minWidth: minTap, minHeight: minTap, alignItems: 'center', justifyContent: 'center' },
+  answer: { gap: space.lg },
   example: { gap: space.xs },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.md },
-  cell: { flexBasis: '46%', flexGrow: 1, gap: space.xs },
-  when: { textAlign: 'center' },
 });

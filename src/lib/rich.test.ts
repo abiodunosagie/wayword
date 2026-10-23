@@ -1,3 +1,4 @@
+// FILE: lib/rich.test.ts
 import { describe, expect, it } from '@jest/globals';
 import { blocks, spans } from './rich';
 

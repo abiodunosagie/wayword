@@ -2,35 +2,26 @@
 // An earlier story, to read again.
 import { useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text } from 'react-native';
+import { useCallback } from 'react';
 
+import { LoadFailed, Loading, Missing, Page } from '@/components/screen';
 import { StoryView } from '@/components/story-view';
 import { getStory } from '@/db/stories';
-import type { Story } from '@/lib/types';
+import { useRecord } from '@/hooks/use-record';
 import { useAccount } from '@/state/session';
-import { space, useTheme } from '@/theme/theme';
 
 export default function StoryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { c, t } = useTheme();
   const db = useSQLiteContext();
   const account = useAccount();
-  const [story, setStory] = useState<Story | null | undefined>(undefined);
+  const [record, retry] = useRecord(useCallback(() => getStory(db, account.id, id), [db, account.id, id]));
 
-  useEffect(() => {
-    getStory(db, account.id, id).then(setStory, () => setStory(null));
-  }, [db, account.id, id]);
-
-  if (story === undefined) return <ActivityIndicator style={styles.center} color={c.muted} />;
+  if (record.state === 'loading') return <Loading />;
+  if (record.state === 'error') return <LoadFailed onRetry={retry} />;
+  if (record.state === 'missing') return <Missing message="This story is no longer here." />;
   return (
-    <ScrollView contentInsetAdjustmentBehavior="automatic" style={{ backgroundColor: c.background }} contentContainerStyle={styles.content}>
-      {story ? <StoryView story={story} /> : <Text style={t.muted}>This story is no longer here.</Text>}
-    </ScrollView>
+    <Page>
+      <StoryView story={record.value} />
+    </Page>
   );
 }
-
-const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  content: { padding: space.xl, paddingBottom: space.xxl * 2 },
-});

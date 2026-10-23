@@ -2,23 +2,24 @@
 // Snap: take or pick a photo of something around you and Claude reads it. Below, every photo read
 // so far, newest first.
 import { Image } from 'expo-image';
-import { router, useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/button';
 import { Notice } from '@/components/notice';
+import { SectionLabel } from '@/components/section-label';
 import { PhotoRow } from '@/components/photo-row';
 import { listSnaps } from '@/db/snaps';
 import { plural, when } from '@/lib/format';
 import { languageName } from '@/lib/languages';
 import { photoUri } from '@/lib/photos';
-import type { Snap } from '@/lib/types';
+import { useFocusLoad } from '@/hooks/use-focus-load';
 import { useSnapReader } from '@/hooks/use-snap-reader';
 import { useLanguagePair } from '@/state/prefs';
 import { useAccount } from '@/state/session';
-import { radius, space, useTheme } from '@/theme/theme';
+import { rounded, space, useTheme } from '@/theme/theme';
 
 export default function SnapScreen() {
   const { c, t } = useTheme();
@@ -26,13 +27,8 @@ export default function SnapScreen() {
   const account = useAccount();
   const prefs = useLanguagePair();
   const reader = useSnapReader(account.id, prefs);
-  const [snaps, setSnaps] = useState<Snap[] | null>(null);
-
-  useFocusEffect(
-    useCallback(() => {
-      listSnaps(db, account.id, prefs.target).then(setSnaps, () => setSnaps([]));
-    }, [db, account.id, prefs.target]),
-  );
+  const [list, reload] = useFocusLoad(useCallback(() => listSnaps(db, account.id, prefs.target), [db, account.id, prefs.target]));
+  const snaps = list.state === 'ready' ? list.value : [];
 
   const open = useCallback((id: string) => router.push({ pathname: '/snap/[id]', params: { id } }), []);
   const { state } = reader;
@@ -54,8 +50,8 @@ export default function SnapScreen() {
         </View>
       ) : (
         <View style={styles.actions}>
-          <Button label="Take a photo" onPress={() => reader.start('camera')} />
-          <Button label="Choose a photo" kind="secondary" onPress={() => reader.start('library')} />
+          <Button label="Take a photo" onPress={() => reader.start('camera')} disabled={state.step === 'preparing'} />
+          <Button label="Choose a photo" kind="secondary" onPress={() => reader.start('library')} disabled={state.step === 'preparing'} />
         </View>
       )}
       {state.step === 'failed' ? (
@@ -64,7 +60,17 @@ export default function SnapScreen() {
           {state.photo ? <Button label="Try again" kind="secondary" onPress={reader.retry} /> : null}
         </View>
       ) : null}
-      {snaps && snaps.length > 0 ? <Text style={[t.label, styles.listLabel]}>READ SO FAR</Text> : null}
+      {list.state === 'error' ? (
+        <View style={styles.actions}>
+          <Notice message="Could not load your photos." />
+          <Button label="Try again" kind="secondary" onPress={reload} />
+        </View>
+      ) : null}
+      {snaps.length > 0 ? (
+        <View style={styles.listLabel}>
+          <SectionLabel>Read so far</SectionLabel>
+        </View>
+      ) : null}
     </View>
   );
 
@@ -73,10 +79,10 @@ export default function SnapScreen() {
       contentInsetAdjustmentBehavior="automatic"
       style={{ backgroundColor: c.background }}
       contentContainerStyle={styles.content}
-      data={snaps ?? []}
+      data={snaps}
       keyExtractor={(s) => s.id}
       ListHeaderComponent={header}
-      ListEmptyComponent={snaps === null ? <ActivityIndicator color={c.muted} /> : undefined}
+      ListEmptyComponent={list.state === 'loading' ? <ActivityIndicator color={c.muted} /> : undefined}
       renderItem={({ item }) => (
         <PhotoRow
           uri={photoUri(item.photo)}
@@ -94,7 +100,7 @@ const styles = StyleSheet.create({
   header: { gap: space.lg, paddingBottom: space.sm },
   actions: { gap: space.md },
   reading: { gap: space.md },
-  preview: { width: '100%', aspectRatio: 4 / 3, borderRadius: radius, borderCurve: 'continuous' },
+  preview: { width: '100%', aspectRatio: 4 / 3, ...rounded },
   readingRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   listLabel: { marginTop: space.md },
 });

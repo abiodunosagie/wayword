@@ -3,13 +3,16 @@
 // deleting the account with everything it kept on this phone.
 import { useSQLiteContext } from 'expo-sqlite';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/button';
+import { ConfirmAction } from '@/components/confirm-action';
 import { Field } from '@/components/field';
 import { LanguagePicker } from '@/components/language-picker';
 import { LevelChoice } from '@/components/level-choice';
 import { Notice } from '@/components/notice';
+import { Page } from '@/components/screen';
+import { SectionLabel } from '@/components/section-label';
 import { deleteAccountData } from '@/db/stories';
 import { AuthError, deleteAccount, signOut, updateName } from '@/lib/auth';
 import { deletePhoto } from '@/lib/photos';
@@ -18,10 +21,10 @@ import { useLanguagePair, usePrefs } from '@/state/prefs';
 import { useAccount } from '@/state/session';
 import { space, useTheme } from '@/theme/theme';
 
-type Step = 'view' | 'name' | 'confirm' | 'deleting';
+type Step = 'view' | 'name';
 
 export default function AccountSheet() {
-  const { c, t } = useTheme();
+  const { t } = useTheme();
   const db = useSQLiteContext();
   const account = useAccount();
   const prefs = useLanguagePair();
@@ -31,6 +34,7 @@ export default function AccountSheet() {
   const [last, setLast] = useState(account.lastName);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const name = [account.firstName, account.lastName].filter(Boolean).join(' ');
 
@@ -49,16 +53,20 @@ export default function AccountSheet() {
     }
   };
 
+  // The server delete cannot be undone, so once it succeeds everything after it is best effort:
+  // the phone's copy is cleared as far as it can be and the session always ends.
   const remove = async () => {
-    setStep('deleting');
-    setError(null);
+    setDeleteError(null);
     try {
       await deleteAccount();
-      for (const photo of await deleteAccountData(db, account.id)) deletePhoto(photo);
-      await signOut();
     } catch (e) {
-      setStep('confirm');
-      setError(e instanceof AuthError ? e.message : 'Could not delete the account. Try again.');
+      setDeleteError(e instanceof AuthError ? e.message : 'Could not delete the account. Try again.');
+      return;
+    }
+    try {
+      for (const photo of await deleteAccountData(db, account.id)) deletePhoto(photo);
+    } finally {
+      await signOut();
     }
   };
 
@@ -66,7 +74,7 @@ export default function AccountSheet() {
     save({ ...prefs, native, target: native === prefs.target ? (native === 'en' ? 'pt-PT' : 'en') : prefs.target });
 
   return (
-    <ScrollView style={{ backgroundColor: c.background }} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <Page>
       <View style={styles.gap}>
         {name ? <Text style={t.title}>{name}</Text> : null}
         <Text style={t.muted} selectable>
@@ -87,37 +95,32 @@ export default function AccountSheet() {
       )}
 
       <View>
-        <Text style={t.label}>LANGUAGES</Text>
+        <SectionLabel>Languages</SectionLabel>
         <LanguagePicker label="I speak" value={prefs.native} onChange={pickNative} />
         <LanguagePicker label="I'm learning" value={prefs.target} onChange={(target) => save({ ...prefs, target })} exclude={prefs.native} />
         <Text style={[t.small, styles.note]}>Words, photos and talks are kept per language; switching back brings them back.</Text>
       </View>
 
       <View>
-        <Text style={t.label}>LEVEL</Text>
+        <SectionLabel>Level</SectionLabel>
         <LevelChoice value={prefs.level} onChange={(level) => save({ ...prefs, level })} />
       </View>
 
-      <Button label="Sign out" kind="secondary" onPress={() => signOut()} disabled={step === 'deleting'} />
+      <Button label="Sign out" kind="secondary" onPress={() => signOut()} />
 
-      {step === 'confirm' || step === 'deleting' ? (
-        <View style={styles.gap}>
-          <Text style={t.body}>
-            This deletes your account and every word, photo, talk and story it kept on this phone. It cannot be undone.
-          </Text>
-          {error ? <Notice message={error} /> : null}
-          <Button label="Delete my account" kind="danger" onPress={remove} busy={step === 'deleting'} />
-          <Button label="Keep my account" kind="quiet" onPress={() => setStep('view')} disabled={step === 'deleting'} />
-        </View>
-      ) : (
-        <Button label="Delete account" kind="quiet" onPress={() => setStep('confirm')} />
-      )}
-    </ScrollView>
+      <ConfirmAction
+        trigger="Delete account"
+        prompt="This deletes your account and every word, photo, talk and story it kept on this phone. It cannot be undone."
+        confirm="Delete my account"
+        cancel="Keep my account"
+        onConfirm={remove}
+        error={deleteError}
+      />
+    </Page>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: space.xl, gap: space.xl, paddingBottom: space.xxl * 2 },
   gap: { gap: space.md },
   note: { marginTop: space.sm },
 });
