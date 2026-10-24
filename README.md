@@ -28,6 +28,18 @@ Every card keeps the photo it came from. "Farmácia de serviço" is easier to re
 see the green cross on your own street. Any of 33 languages can be the one you speak or the one
 you learn, at three levels. The phone reads words, examples and stories aloud in the right voice.
 
+## Screens
+
+Captured from the real app on the iOS Simulator, signed in to the real backend.
+
+| Snap reads a sign | Words worth keeping | Your words | Talk |
+| --- | --- | --- | --- |
+| <img src="docs/screenshots/snap.png" width="200" alt="Snap reading a Portuguese motorway sign and explaining it"> | <img src="docs/screenshots/keep.png" width="200" alt="Words picked from the sign, ready to keep"> | <img src="docs/screenshots/words.png" width="200" alt="List of kept words with meanings"> | <img src="docs/screenshots/talk.png" width="200" alt="Talk scenarios built from your photos and everyday situations"> |
+
+| This week | Words, dark | Talk, dark | This week, dark |
+| --- | --- | --- | --- |
+| <img src="docs/screenshots/story.png" width="200" alt="Weekly story written from the words you kept"> | <img src="docs/screenshots/words-dark.png" width="200" alt="Kept words in dark mode"> | <img src="docs/screenshots/talk-dark.png" width="200" alt="Talk scenarios in dark mode"> | <img src="docs/screenshots/story-dark.png" width="200" alt="Weekly story in dark mode"> |
+
 ## How it is built
 
 ```
